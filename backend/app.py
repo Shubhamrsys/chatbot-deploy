@@ -5,7 +5,11 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 # Allow CORS for your Vercel frontend (update after deployment)
-CORS(app, origins=["https://your-frontend.vercel.app", "http://localhost:3000"])
+CORS(app, origins=[
+    "https://chatbot-frontend-ruddy-one.vercel.app",
+    "https://chatbot-frontend-ajovzt96r-shubhamrsys-s-projects.vercel.app",
+    "http://localhost:3000"
+])
 
 # Sample patient data
 patients_data = {
