@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareCompanion AI - Healthcare Chatbot</title>
+    <title>CareCompanion AI - Chat</title>
     <style>
         * {
             margin: 0;
@@ -21,8 +21,8 @@
         }
 
         .chat-container {
-            width: 500px;
-            height: 750px;
+            width: 550px;
+            height: 800px;
             background: white;
             border-radius: 30px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -76,34 +76,48 @@
         }
 
         @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
+            0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.5; transform: scale(1.2); }
-            100% { opacity: 1; transform: scale(1); }
         }
 
-        .patient-selector {
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .patient-info {
             padding: 12px 20px;
-            background: #f7f9fc;
+            background: #f1f5f9;
             border-bottom: 1px solid #e2e8f0;
             display: flex;
-            gap: 10px;
+            justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 13px;
         }
 
-        .patient-selector label {
-            font-size: 13px;
-            font-weight: bold;
-            color: #475569;
+        .patient-details {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
-        .patient-selector select {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 13px;
+        .patient-details span {
             background: white;
-            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
         }
 
         .messages-area {
@@ -287,32 +301,22 @@
                 <h2>CareCompanion AI</h2>
                 <div class="status">
                     <span class="online-dot"></span>
-                    <span id="statusText">Connecting...</span>
+                    <span id="statusText">Connected</span>
                 </div>
             </div>
+            <button class="logout-btn" onclick="logout()">🚪 Logout</button>
         </div>
 
-        <div class="patient-selector">
-            <label>👤 Patient:</label>
-            <select id="patientSelect">
-                <option value="1001">Patient 1001 (65, Male)</option>
-                <option value="1002">Patient 1002 (72, Female)</option>
-                <option value="1003">Patient 1003 (58, Male)</option>
-                <option value="1004">Patient 1004 (45, Female)</option>
-                <option value="1005">Patient 1005 (38, Male)</option>
-            </select>
+        <div class="patient-info" id="patientInfo">
+            <div class="patient-details">
+                <span>🆔 Loading patient...</span>
+            </div>
         </div>
 
         <div class="messages-area" id="messagesArea">
             <div class="message bot">
                 <div class="message-content">
-                    👋 Hello! I'm CareCompanion AI. I can help you with appointments, preparation instructions, and directions. How can I help you today?
-                    <div class="quick-replies">
-                        <button class="quick-reply-btn" onclick="sendQuickReply('appointments')">📅 View Appointments</button>
-                        <button class="quick-reply-btn" onclick="sendQuickReply('prep')">📋 Prep Instructions</button>
-                        <button class="quick-reply-btn" onclick="sendQuickReply('directions')">📍 Directions</button>
-                    </div>
-                    <span class="message-time">Just now</span>
+                    Loading your health assistant...
                 </div>
             </div>
         </div>
@@ -324,10 +328,50 @@
     </div>
 
     <script>
-        // IMPORTANT: Update this URL after deploying your backend to Render
         const API_URL = 'https://chatbot-backend-cxpy.onrender.com/api';
-        
-        let currentPatientId = 1001;
+        let currentPatientId = null;
+
+        // Check if user is logged in
+        function checkAuth() {
+            currentPatientId = sessionStorage.getItem('patientId');
+            if (!currentPatientId) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        // Load patient info
+        async function loadPatientInfo() {
+            try {
+                const response = await fetch(`${API_URL}/patient/${currentPatientId}/info`);
+                if (response.ok) {
+                    const info = await response.json();
+                    const infoDiv = document.getElementById('patientInfo');
+                    infoDiv.innerHTML = `
+                        <div class="patient-details">
+                            <span>🆔 ID: ${info.patient_id}</span>
+                            <span>🎂 Age: ${info.age}</span>
+                            <span>⚥ Gender: ${info.gender}</span>
+                            <span>📅 Appointments: ${info.appointment_count}</span>
+                            ${info.conditions && info.conditions.length > 0 ? `<span>🏥 Conditions: ${info.conditions.slice(0, 2).join(', ')}</span>` : ''}
+                        </div>
+                    `;
+                    
+                    // Welcome message
+                    addMessage(`👋 Welcome back, ${info.name || `Patient ${info.patient_id}`}! I'm your healthcare assistant. You have ${info.appointment_count} upcoming appointments. How can I help you today?`, false, [
+                        { label: "📅 View Appointments", action: "view_appointments" },
+                        { label: "📋 Prep Instructions", action: "prep_instructions" },
+                        { label: "📍 Directions", action: "directions" }
+                    ]);
+                } else {
+                    addMessage("⚠️ Unable to load your information. Please try logging in again.", false);
+                }
+            } catch (error) {
+                console.error('Error loading patient info:', error);
+                addMessage("⚠️ Connection error. Please make sure the backend is running.", false);
+            }
+        }
 
         async function sendToBackend(message) {
             try {
@@ -337,15 +381,19 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        patient_id: currentPatientId,
+                        patient_id: parseInt(currentPatientId),
                         message: message
                     })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
                 const data = await response.json();
                 return data.response;
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Chat error:', error);
                 return "⚠️ Sorry, I'm having trouble connecting. Please make sure the backend is running.";
             }
         }
@@ -366,9 +414,10 @@
 
         function sendQuickReply(action) {
             let message = "";
-            if (action === 'appointments') message = "Show me my upcoming appointments";
-            else if (action === 'prep') message = "What are the preparation instructions?";
+            if (action === 'view_appointments') message = "Show me my upcoming appointments";
+            else if (action === 'prep_instructions') message = "What are the preparation instructions?";
             else if (action === 'directions') message = "Can I get directions?";
+            else if (action === 'confirm') message = "Confirm my appointments";
             
             addMessage(message, true);
             showTyping();
@@ -422,12 +471,15 @@
             }
         }
 
-        document.getElementById('patientSelect').addEventListener('change', (e) => {
-            currentPatientId = parseInt(e.target.value);
-            addMessage(`🔄 Switched to ${e.target.options[e.target.selectedIndex].text}`, false);
-        });
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        }
 
-        document.getElementById('statusText').innerHTML = 'Online • Ready';
+        // Initialize
+        if (checkAuth()) {
+            loadPatientInfo();
+        }
     </script>
 </body>
 </html>

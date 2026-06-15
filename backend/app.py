@@ -4,11 +4,13 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-# Allow CORS for your Vercel frontend (update after deployment)
+
+# Allow CORS for your Vercel frontend URLs
 CORS(app, origins=[
     "https://chatbot-frontend-ruddy-one.vercel.app",
     "https://chatbot-frontend-ajovzt96r-shubhamrsys-s-projects.vercel.app",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "http://localhost:5500"
 ])
 
 # Sample patient data
@@ -58,12 +60,71 @@ def recognize_intent(message):
     else:
         return 'general'
 
+# ============================================================
+# NEW ENDPOINTS FOR LOGIN AND DYNAMIC PATIENT SUPPORT
+# ============================================================
+
+@app.route('/api/patient/<int:patient_id>/exists', methods=['GET'])
+def patient_exists(patient_id):
+    """Check if patient exists and return basic info"""
+    # Check in existing data
+    if patient_id in patients_data:
+        return jsonify({
+            'exists': True,
+            'patient_id': patient_id,
+            'name': patients_data[patient_id].get('name', f"Patient_{patient_id}")
+        })
+    else:
+        # For dynamic patients, always return True
+        # This allows ANY patient ID to work!
+        return jsonify({
+            'exists': True,
+            'patient_id': patient_id,
+            'name': f"Patient_{patient_id}"
+        })
+
+@app.route('/api/patient/<int:patient_id>/info', methods=['GET'])
+def get_patient_info_dynamic(patient_id):
+    """Get detailed patient info (works for any ID)"""
+    
+    # Check if patient exists in static data
+    if patient_id in patients_data:
+        patient = patients_data[patient_id]
+        appointments_list = appointments.get(patient_id, [])
+        return jsonify({
+            'patient_id': patient_id,
+            'name': patient.get('name', f"Patient_{patient_id}"),
+            'age': patient.get('age', 'Unknown'),
+            'gender': patient.get('gender', 'Unknown'),
+            'appointment_count': len(appointments_list),
+            'conditions': patient.get('conditions', [])
+        })
+    else:
+        # Generate dynamic data for any patient ID
+        # This allows ANY patient ID to work!
+        return jsonify({
+            'patient_id': patient_id,
+            'name': f"Patient_{patient_id}",
+            'age': (patient_id % 80) + 18,  # Age between 18-98
+            'gender': 'Male' if patient_id % 2 == 0 else 'Female',
+            'appointment_count': (patient_id % 5) + 1,  # 1-5 appointments
+            'conditions': []
+        })
+
+# ============================================================
+# EXISTING ENDPOINTS
+# ============================================================
+
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy", "message": "Chatbot API is running!"})
 
-@app.route('/api/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST', 'OPTIONS'])
 def chat():
+    # Handle preflight CORS request
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     data = request.json
     patient_id = data.get('patient_id')
     message = data.get('message', '')
@@ -78,7 +139,7 @@ def chat():
             response = "📅 **Your Upcoming Appointments:**\n\n"
             for apt in patient_appointments:
                 response += f"• {apt['type']} on {apt['date']} at {apt['time']}\n"
-                response += f"  👨‍⚕️ Dr. {apt['provider']}\n"
+                response += f"  👨‍⚕️ {apt['provider']}\n"
                 response += f"  📍 {apt['location']}\n\n"
             response += "Would you like preparation instructions?"
     
@@ -115,8 +176,11 @@ def chat():
 What would you like to do?"""
     
     elif intent == 'greeting':
-        patient = patients_data.get(patient_id, {})
-        name = patient.get('name', 'there')
+        # Check both static and dynamic
+        if patient_id in patients_data:
+            name = patients_data[patient_id].get('name', 'there')
+        else:
+            name = f"Patient {patient_id}"
         response = f"Hello {name}! 👋 I'm your healthcare assistant. I can help you with appointments, preparation instructions, and directions. How can I help you today?"
     
     else:
